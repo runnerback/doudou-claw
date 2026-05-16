@@ -20,7 +20,7 @@ function buildThinkingCard() {
       template: 'blue',
     },
     elements: [
-      { tag: 'div', text: { tag: 'lark_md', content: '⏳ **正在解析你的任务...**\n\n稍等几秒，我喊 DeepSeek 算算' } },
+      { tag: 'div', text: { tag: 'lark_md', content: '⏳ **正在解析你的任务...**\n\n稍等几秒' } },
     ],
   }
 }
@@ -50,6 +50,24 @@ function buildSuccessCard({ recordId, autoId, title, human, content, type }) {
   }
 }
 
+// 批量创建成功卡片（多任务一次创建）
+function buildBatchSuccessCard({ created, failed }) {
+  const lines = created.map(r => `• \`#${r.autoId || '?'}\` ${r.title} — ${r.human}`).join('\n')
+  const failLines = (failed || []).length
+    ? '\n\n**⚠️ 失败：**\n' + failed.map(f => `• ${f.task?.title || '(unknown)'} — ${f.error}`).join('\n')
+    : ''
+  return {
+    config: { wide_screen_mode: true },
+    header: {
+      title: { tag: 'plain_text', content: `✅ 已创建 ${created.length} 个提醒` },
+      template: 'green',
+    },
+    elements: [
+      { tag: 'div', text: { tag: 'lark_md', content: lines + failLines } },
+    ],
+  }
+}
+
 function buildFailureCard(errorMessage) {
   return {
     config: { wide_screen_mode: true },
@@ -60,22 +78,61 @@ function buildFailureCard(errorMessage) {
     elements: [
       { tag: 'div', text: { tag: 'lark_md', content: errorMessage || '我没法把这句话变成任务。' } },
       { tag: 'hr' },
-      { tag: 'div', text: { tag: 'lark_md', content: '**可以这样说：**\n• 每天 9 点提醒我喝水\n• 工作日 8 点半提醒打卡\n• 每月 11 号 14:00 提醒交房租\n• 每年 3 月 15 日提醒张三生日' } },
+      { tag: 'div', text: { tag: 'lark_md', content: '**可以这样说：**\n• 每天 9 点提醒我喝水\n• 工作日 8 点半提醒打卡；每月 11 号交房租（**支持多条**）\n• 删掉喝水提醒\n• 把打卡改成 9 点\n• 看看我有哪些任务' } },
     ],
   }
 }
 
-function buildTriggerCard({ autoId, title, content, human }) {
+// 推送触发卡片（带 完成 / 稍后 按钮）
+function buildTriggerCard({ recordId, autoId, title, content, human, isOnce, snoozed, snoozeMinutes }) {
+  const header = snoozed
+    ? `🔔 提醒（${snoozeMinutes}min后）#${autoId || '?'}`
+    : `🔔 任务提醒 #${autoId || '?'}`
   return {
     config: { wide_screen_mode: true },
     header: {
-      title: { tag: 'plain_text', content: `🔔 任务提醒 #${autoId || '?'}` },
+      title: { tag: 'plain_text', content: header },
       template: 'orange',
     },
     elements: [
       { tag: 'div', text: { tag: 'lark_md', content: `**📌 ${title}**` } },
       { tag: 'div', text: { tag: 'lark_md', content: content || '_(无详细内容)_' } },
       { tag: 'div', text: { tag: 'lark_md', content: `_⏰ ${human}_` } },
+      { tag: 'hr' },
+      { tag: 'action', actions: [
+        { tag: 'button', text: { tag: 'plain_text', content: '✅ 完成' },
+          type: 'primary', value: { action: 'task_done', record_id: recordId, is_once: !!isOnce } },
+        { tag: 'button', text: { tag: 'plain_text', content: '⏰ 10 分钟后' },
+          type: 'default', value: { action: 'snooze', record_id: recordId, minutes: 10 } },
+        { tag: 'button', text: { tag: 'plain_text', content: '⏰ 30 分钟后' },
+          type: 'default', value: { action: 'snooze', record_id: recordId, minutes: 30 } },
+        { tag: 'button', text: { tag: 'plain_text', content: '⏰ 1 小时后' },
+          type: 'default', value: { action: 'snooze', record_id: recordId, minutes: 60 } },
+      ]},
+    ],
+  }
+}
+
+// 多匹配选择卡片
+function buildMatchSelectCard({ action, matches }) {
+  // action = 'delete' | 'pause'
+  const actionText = action === 'delete' ? '删除' : '暂停'
+  const lines = matches.map(r => `• \`#${r.autoId}\` ${r.title} — ${r.human}`).join('\n')
+  return {
+    config: { wide_screen_mode: true },
+    header: {
+      title: { tag: 'plain_text', content: `❓ 匹配到 ${matches.length} 个任务，请选择要${actionText}的` },
+      template: 'wathet',
+    },
+    elements: [
+      { tag: 'div', text: { tag: 'lark_md', content: lines } },
+      { tag: 'hr' },
+      { tag: 'action', actions: matches.slice(0, 10).map(r => ({
+        tag: 'button',
+        text: { tag: 'plain_text', content: `${actionText} ${r.title}` },
+        type: action === 'delete' ? 'danger' : 'default',
+        value: { action: action === 'delete' ? 'reminder_delete' : 'reminder_pause', record_id: r.recordId },
+      })) },
     ],
   }
 }
@@ -89,6 +146,32 @@ function buildChatCard(content) {
     },
     elements: [
       { tag: 'div', text: { tag: 'lark_md', content } },
+    ],
+  }
+}
+
+function buildDoneCard({ title, autoId }) {
+  return {
+    config: { wide_screen_mode: true },
+    header: {
+      title: { tag: 'plain_text', content: `✅ 已完成 #${autoId || '?'}` },
+      template: 'green',
+    },
+    elements: [
+      { tag: 'div', text: { tag: 'lark_md', content: `**${title}** 已标记完成` } },
+    ],
+  }
+}
+
+function buildSnoozeAckCard({ title, autoId, minutes }) {
+  return {
+    config: { wide_screen_mode: true },
+    header: {
+      title: { tag: 'plain_text', content: `⏰ 已延后 ${minutes} 分钟` },
+      template: 'turquoise',
+    },
+    elements: [
+      { tag: 'div', text: { tag: 'lark_md', content: `**${title}** 已延后，${minutes} 分钟后我再提醒你。` } },
     ],
   }
 }
@@ -126,6 +209,8 @@ async function updateCard(messageId, card) {
 }
 
 module.exports = {
-  buildThinkingCard, buildSuccessCard, buildFailureCard, buildTriggerCard, buildChatCard,
+  buildThinkingCard, buildSuccessCard, buildBatchSuccessCard,
+  buildFailureCard, buildTriggerCard, buildMatchSelectCard,
+  buildChatCard, buildDoneCard, buildSnoozeAckCard,
   sendCard, replyCard, updateCard, getClient,
 }

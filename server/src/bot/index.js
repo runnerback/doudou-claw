@@ -108,9 +108,10 @@ function startBot() {
 
     // ===== 卡片按钮回调 =====
     'card.action.trigger': async (data) => {
-      const action = data?.action?.value?.action
-      const recordId = data?.action?.value?.record_id
-      console.log(`[bot] card action: ${action} record=${recordId}`)
+      const value = data?.action?.value || {}
+      const action = value.action
+      const recordId = value.record_id
+      console.log(`[bot] card action: ${action} record=${recordId} extra=${JSON.stringify(value)}`)
 
       if (action === 'reminder_pause' && recordId) {
         try { await reminderService.pauseReminder(recordId) } catch (e) {
@@ -131,6 +132,42 @@ function startBot() {
           config: { wide_screen_mode: true },
           header: { title: { tag: 'plain_text', content: '🗑 已删除' }, template: 'grey' },
           elements: [{ tag: 'div', text: { tag: 'lark_md', content: '提醒已从任务清单中移除。' } }],
+        }
+      }
+
+      // 任务完成（推送卡片上的"✅ 完成"按钮）
+      if (action === 'task_done' && recordId) {
+        const reminder = reminderService.findByRecordId(recordId)
+        const title = reminder?.title || '任务'
+        const autoId = reminder?.autoId || ''
+        // once 任务到这一步通常已经 markEnded（onTrigger 内）；这里只更新卡片视觉
+        return {
+          config: { wide_screen_mode: true },
+          header: { title: { tag: 'plain_text', content: `✅ 已完成 #${autoId}` }, template: 'green' },
+          elements: [
+            { tag: 'div', text: { tag: 'lark_md', content: `**${title}** 已标记完成 🎉` } },
+          ],
+        }
+      }
+
+      // 稍后再提（10/30/60 分钟）
+      if (action === 'snooze' && recordId) {
+        const minutes = Number(value.minutes) || 10
+        const reminder = reminderService.findByRecordId(recordId)
+        if (!reminder) {
+          return {
+            config: { wide_screen_mode: true },
+            header: { title: { tag: 'plain_text', content: '⚠️ 任务不存在' }, template: 'grey' },
+            elements: [{ tag: 'div', text: { tag: 'lark_md', content: '可能已被删除，无法 snooze' } }],
+          }
+        }
+        reminderService.snooze(reminder, minutes)
+        return {
+          config: { wide_screen_mode: true },
+          header: { title: { tag: 'plain_text', content: `⏰ 已延后 ${minutes} 分钟` }, template: 'turquoise' },
+          elements: [
+            { tag: 'div', text: { tag: 'lark_md', content: `**${reminder.title}** 已延后，${minutes} 分钟后我再提醒你。` } },
+          ],
         }
       }
 
