@@ -36,7 +36,8 @@ function buildFields(reminder) {
   if (reminder.human !== undefined) f['触发说明'] = reminder.human
   if (reminder.nextTriggerMs) f['下次触发'] = reminder.nextTriggerMs
   if (reminder.status !== undefined) f['状态'] = reminder.status
-  if (reminder.creator !== undefined) f['创建者'] = reminder.creator
+  // 创建者：人员字段 (type 11)，传 [{ id: open_id }]，飞书自动渲染为 @姓名 + 头像
+  if (reminder.creator) f['创建者'] = [{ id: reminder.creator }]
   if (reminder.target !== undefined) f['推送目标'] = reminder.target
   if (reminder.lastTriggerMs) f['最近触发'] = reminder.lastTriggerMs
   if (reminder.originalMessage !== undefined) f['原始消息'] = reminder.originalMessage
@@ -104,6 +105,18 @@ function extractText(v) {
   return String(v)
 }
 
+function extractUserId(v) {
+  if (!v) return ''
+  if (Array.isArray(v) && v.length > 0) return v[0].id || ''
+  return ''
+}
+
+function extractUserName(v) {
+  if (!v) return ''
+  if (Array.isArray(v) && v.length > 0) return v[0].name || ''
+  return ''
+}
+
 function recordToReminder(record) {
   const f = record.fields || {}
   return {
@@ -116,7 +129,8 @@ function recordToReminder(record) {
     human: extractText(f['触发说明']),
     nextTriggerMs: typeof f['下次触发'] === 'number' ? f['下次触发'] : null,
     status: extractText(f['状态']),
-    creator: extractText(f['创建者']),
+    creator: extractUserId(f['创建者']),
+    creatorName: extractUserName(f['创建者']),
     target: extractText(f['推送目标']),
     lastTriggerMs: typeof f['最近触发'] === 'number' ? f['最近触发'] : null,
     originalMessage: extractText(f['原始消息']),

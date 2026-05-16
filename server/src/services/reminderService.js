@@ -108,6 +108,7 @@ function schedule(reminder) {
       onTrigger(reminder).catch(e => console.error('[reminder] onTrigger err:', e.message))
     }, delay)
     scheduled.set(reminder.recordId, { reminder, handle })
+    console.log(`[reminder] scheduled ONCE #${reminder.autoId} "${reminder.title}" in ${Math.round(delay/1000)}s`)
     return
   }
 
@@ -184,8 +185,12 @@ async function loadAndScheduleAll() {
     const local = []
     for (const r of records) {
       const reminder = bitable.recordToReminder(r)
-      // 重算 nextTriggerMs（防止本地缓存过期）
-      reminder.nextTriggerMs = computeNextTrigger(reminder.type, reminder.cron, reminder.runAt)
+      // once 任务：bitable 的"下次触发"是唯一真源（创建时已写入），不重算
+      // 周期任务：cron 才是真源，重算 nextTriggerMs 只为展示新值
+      if (reminder.type !== 'once') {
+        const next = computeNextTrigger(reminder.type, reminder.cron, null)
+        if (next) reminder.nextTriggerMs = next
+      }
       local.push(reminder)
       schedule(reminder)
     }
