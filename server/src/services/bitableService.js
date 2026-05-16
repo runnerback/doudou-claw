@@ -21,6 +21,8 @@ const TYPE_LABEL = {
   yearly: '每年',
   workday: '工作日',
   cron: '自定义cron',
+  lunar: '农历',
+  nth_weekday: '每月第N周X',
 }
 const LABEL_TYPE = Object.fromEntries(Object.entries(TYPE_LABEL).map(([k, v]) => [v, k]))
 
@@ -50,7 +52,19 @@ async function createRecord(reminder) {
     path: { app_token: APP_TOKEN, table_id: TABLE_ID },
     data: { fields: buildFields(reminder) },
   })
-  return res?.data?.record
+  let record = res?.data?.record
+  // 自动编号字段在 create 响应里异步生成不返回，主动 GET 一次回拿
+  if (record && !record.fields?.ID) {
+    try {
+      const got = await getClient().bitable.v1.appTableRecord.get({
+        path: { app_token: APP_TOKEN, table_id: TABLE_ID, record_id: record.record_id },
+      })
+      if (got?.data?.record) record = got.data.record
+    } catch (e) {
+      console.warn('[bitable] fetch auto-id failed:', e.message)
+    }
+  }
+  return record
 }
 
 async function updateRecord(recordId, partial) {

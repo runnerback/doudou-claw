@@ -4,7 +4,7 @@ const cron = require('node-cron')
 const bitable = require('./bitableService')
 const feishuMsg = require('./feishuMsg')
 const { nowLocal, TZ } = require('../utils/timeUtil')
-const { computeNextTrigger } = require('../utils/cronBuilder')
+const { computeNextTrigger, parseScheduleString, isTodayMatch } = require('../utils/cronBuilder')
 
 const DATA_FILE = path.join(__dirname, '../../data/reminders.json')
 
@@ -222,6 +222,12 @@ function schedule(reminder) {
 
   if (reminder.status !== '启用') return
 
+  // 农历 / 每月第N周X：靠 master daily job 处理，启动时也跑一次今日评估
+  if (reminder.type === 'lunar' || reminder.type === 'nth_weekday') {
+    scheduleSpecialToday(reminder)
+    return
+  }
+
   if (reminder.type === 'once') {
     const triggerMs = reminder.nextTriggerMs ||
       (reminder.runAt ? new Date(reminder.runAt).getTime() : null)
@@ -252,6 +258,65 @@ function schedule(reminder) {
   }, { timezone: TZ })
   scheduled.set(reminder.recordId, { reminder, job })
   console.log(`[reminder] scheduled #${reminder.autoId} "${reminder.title}" cron=${reminder.cron}`)
+}
+
+/**
+ * 对 lunar / nth_weekday 任务：判断今天是否匹配，如匹配且时间未过，安排今日的 setTimeout
+ * 这个函数会被两处调用：(1) schedule() 时；(2) master daily 00:01
+ */
+function scheduleSpecialToday(reminder) {
+  const parsed = parseScheduleString(reminder.cron)
+  if (parsed.kind !== 'lunar' && parsed.kind !== 'nth') {
+    console.warn(`[reminder] special task #${reminder.autoId} cron 不合法: ${reminder.cron}`)
+    return
+  }
+  if (!isTodayMatch(parsed)) {
+    console.log(`[reminder] special #${reminder.autoId} 今日不命中，跳过`)
+    return
+  }
+
+  const today = nowLocal()
+  const trigger = today.hour(parsed.hour).minute(parsed.minute).second(0).millisecond(0)
+  const delay = trigger.valueOf() - Date.now()
+  if (delay <= 0) {
+    console.log(`[reminder] special #${reminder.autoId} 今日已过 ${parsed.hour}:${parsed.minute}，跳过`)
+    return
+  }
+
+  // 今日是否已触发过（lastTriggerMs 在今天 0 点之后）
+  const startOfToday = today.startOf('day').valueOf()
+  if (reminder.lastTriggerMs && reminder.lastTriggerMs >= startOfToday) {
+    console.log(`[reminder] special #${reminder.autoId} 今日已触发过，跳过`)
+    return
+  }
+
+  const handle = setTimeout(() => {
+    onTrigger(reminder).catch(e => console.error('[reminder] special trigger err:', e.message))
+  }, delay)
+  scheduled.set(reminder.recordId, { reminder, handle })
+  console.log(`[reminder] scheduled SPECIAL #${reminder.autoId} "${reminder.title}" today at ${trigger.format('HH:mm')} (in ${Math.round(delay / 1000)}s)`)
+}
+
+/**
+ * Master daily check：每天 00:01 评估所有 lunar/nth_weekday 任务
+ * 启动时也跑一次（防止服务在凌晨重启后错过当天）
+ */
+let masterCronJob = null
+function startMasterDailyCheck() {
+  if (masterCronJob) return
+  const runOnce = () => {
+    console.log('[reminder] master daily check fired')
+    for (const r of loadLocal()) {
+      if (r.status !== '启用') continue
+      if (r.type !== 'lunar' && r.type !== 'nth_weekday') continue
+      scheduleSpecialToday(r)
+    }
+  }
+  // 启动时立刻评估（覆盖凌晨重启场景）
+  runOnce()
+  // 每天 00:01 重新评估
+  masterCronJob = cron.schedule('1 0 * * *', runOnce, { timezone: TZ })
+  console.log('[reminder] master daily check scheduled @ 00:01')
 }
 
 function cancel(recordId) {
@@ -321,6 +386,8 @@ async function loadAndScheduleAll() {
     }
     saveLocal(local)
     console.log(`[reminder] active jobs: ${scheduled.size}`)
+    // 启动 master daily check（处理 lunar/nth_weekday 任务）
+    startMasterDailyCheck()
   } catch (err) {
     console.error('[reminder] load failed:', err.message)
   }
