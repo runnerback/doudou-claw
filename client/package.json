@@ -1,0 +1,25 @@
+{
+  "name": "qclaw-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "QClaw 飞书机器人 - 前端（管理面板 + 业务 H5）",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --port 13101"
+  },
+  "dependencies": {
+    "antd": "^6.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.0.0"
+  }
+}
