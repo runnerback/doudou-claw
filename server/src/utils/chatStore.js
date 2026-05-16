@@ -28,9 +28,9 @@ function saveChats(chats) {
 }
 
 function learnChat(chatId, chatType) {
-  if (!chatId) return
+  if (!chatId) return false
   const chats = loadChats()
-  if (chats.find(c => c.chat_id === chatId)) return
+  if (chats.find(c => c.chat_id === chatId)) return false
   chats.push({
     chat_id: chatId,
     chat_type: chatType || 'unknown',
@@ -39,6 +39,11 @@ function learnChat(chatId, chatType) {
     first_seen: new Date().toISOString(),
   })
   saveChats(chats)
+  return true
+}
+
+function getChat(chatId) {
+  return loadChats().find(c => c.chat_id === chatId) || null
 }
 
 function updateChat(chatId, updates) {
@@ -54,4 +59,4 @@ function deleteChat(chatId) {
   saveChats(chats)
 }
 
-module.exports = { loadChats, saveChats, learnChat, updateChat, deleteChat }
+module.exports = { loadChats, saveChats, learnChat, getChat, updateChat, deleteChat }

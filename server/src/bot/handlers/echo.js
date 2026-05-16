@@ -3,12 +3,12 @@
  *   群聊：@bot <文本>  → 回 "[QClaw echo] <文本>"
  *   私聊：<文本>       → 同上
  *   @bot help          → 显示帮助
- *
- * 后续扩展（按 PRD 推进）：任务获取、任务推送、LLM 智能回复
  */
 
 function isBotMention(m) {
-  return m?.id?.user_id === '' || m?.key === '@_all'
+  // 飞书 mentions 数组里 bot 的判别字段是 mentioned_type === 'bot'
+  // （id.user_id 为 null、key 为 @_user_N、不一定是 @_all）
+  return m?.mentioned_type === 'bot' || m?.key === '@_all'
 }
 
 function extractText(message) {
@@ -37,7 +37,10 @@ async function handle(client, data) {
   // 群聊必须 @bot 才响应（私聊直接响应）
   if (chat_type !== 'p2p') {
     const isMentioned = Array.isArray(mentions) && mentions.some(isBotMention)
-    if (!isMentioned) return
+    if (!isMentioned) {
+      console.log(`[bot] group msg not mentioned to bot, mentions=${JSON.stringify(mentions || [])}`)
+      return
+    }
   }
 
   const text = extractText(message).replace(/@_user_\d+/g, '').trim()

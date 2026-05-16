@@ -34,7 +34,9 @@ export default function Home() {
                 ? <Tag color="blue">已启用 (ENABLE_BOT=true)</Tag>
                 : <Tag>未启用</Tag>}
             </Descriptions.Item>
-            <Descriptions.Item label="时间">{health.timestamp}</Descriptions.Item>
+            <Descriptions.Item label="时间">
+              {new Date(health.timestamp).toLocaleString('zh-CN', { hour12: false })}
+            </Descriptions.Item>
           </Descriptions>
         )}
       </Card>
