@@ -41,7 +41,15 @@ function buildFields(reminder) {
   if (reminder.status !== undefined) f['状态'] = reminder.status
   // 创建者：人员字段 (type 11)，传 [{ id: open_id }]，飞书自动渲染为 @姓名 + 头像
   if (reminder.creator) f['创建者'] = [{ id: reminder.creator }]
-  if (reminder.target !== undefined) f['推送目标'] = reminder.target
+  // 推送目标：人员字段 (type 11)，传 [{ id: open_id }]
+  // 兼容老逻辑可能传 chat_id，但新建任务都用 open_id（见 reminderHandler）
+  if (reminder.target) {
+    if (typeof reminder.target === 'string' && reminder.target.startsWith('ou_')) {
+      f['推送目标'] = [{ id: reminder.target }]
+    } else if (typeof reminder.target === 'string' && reminder.target.startsWith('oc_')) {
+      // 历史 chat_id 数据，无法直接写人员字段，跳过（迁移阶段一次性的兼容）
+    }
+  }
   if (reminder.lastTriggerMs) f['最近触发'] = reminder.lastTriggerMs
   if (reminder.originalMessage !== undefined) f['原始消息'] = reminder.originalMessage
   if (reminder.note !== undefined) f['备注'] = reminder.note
@@ -153,7 +161,8 @@ function recordToReminder(record) {
     status: extractText(f['状态']),
     creator: extractUserId(f['创建者']),
     creatorName: extractUserName(f['创建者']),
-    target: extractText(f['推送目标']),
+    target: extractUserId(f['推送目标']),
+    targetName: extractUserName(f['推送目标']),
     lastTriggerMs: typeof f['最近触发'] === 'number' ? f['最近触发'] : null,
     originalMessage: extractText(f['原始消息']),
     note: extractText(f['备注']),

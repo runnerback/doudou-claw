@@ -36,8 +36,15 @@ function findByRecordId(recordId) {
 // ============================================
 // 匹配（delete/update 用）
 // ============================================
-function matchTargets(targets, chatId) {
-  const list = loadLocal().filter(r => r.target === chatId && r.status === '启用')
+// 通用 target 匹配：当前 target 可能是 open_id（新）或 chat_id（老）；contextIds 同时含两者
+function matchesContext(target, contextIds) {
+  if (!target) return false
+  return contextIds.includes(target)
+}
+
+function matchTargets(targets, chatId, senderOpenId) {
+  const contextIds = [chatId, senderOpenId].filter(Boolean)
+  const list = loadLocal().filter(r => matchesContext(r.target, contextIds) && r.status === '启用')
   const matched = []
   for (const t of targets || []) {
     if (t.id) {
@@ -84,6 +91,7 @@ async function createBatch(tasks, ctx) {
 }
 
 async function _createOne(task, ctx) {
+  // target 改为 open_id（人员字段语义）。p2p 场景 = sender open_id；group 场景目前不支持创建
   const reminder = {
     title: task.title || '未命名任务',
     content: task.content || '',
@@ -93,7 +101,7 @@ async function _createOne(task, ctx) {
     runAt: task.run_at || null,
     nextTriggerMs: computeNextTrigger(task.type, task.cron, task.run_at),
     creator: ctx.senderOpenId,
-    target: ctx.chatId,
+    target: ctx.senderOpenId || ctx.chatId, // 优先 open_id；fallback chat_id（兼容）
     originalMessage: ctx.originalMessage,
     status: '启用',
     createdAt: nowLocal().toISOString(),

@@ -69,7 +69,8 @@ async function handle(client, data) {
 
     // ===== list =====
     if (parsed.intent === 'list') {
-      const reminders = reminderService.loadLocal().filter(r => r.target === chat_id && r.status === '启用')
+      const reminders = reminderService.loadLocal().filter(r =>
+        (r.target === chat_id || r.target === senderOpenId) && r.status === '启用')
       const body = reminders.length
         ? reminders.map(r => `• \`#${r.autoId || '?'}\` ${r.title} — ${r.human || r.cron}`).join('\n')
         : '_目前没有任何启用中的提醒任务_'
@@ -79,7 +80,7 @@ async function handle(client, data) {
 
     // ===== delete / pause =====
     if (parsed.intent === 'delete' || parsed.intent === 'pause') {
-      const matches = reminderService.matchTargets(parsed.targets, chat_id)
+      const matches = reminderService.matchTargets(parsed.targets, chat_id, senderOpenId)
       if (matches.length === 0) {
         await updateOrSend(feishuMsg.buildChatCard(`没找到匹配的任务。试着用 \`#编号\` 或更精确的关键词。`))
         return
@@ -122,7 +123,7 @@ async function handle(client, data) {
 
     // ===== update =====
     if (parsed.intent === 'update') {
-      const matches = reminderService.matchTargets(parsed.targets, chat_id)
+      const matches = reminderService.matchTargets(parsed.targets, chat_id, senderOpenId)
       if (matches.length === 0) {
         await updateOrSend(feishuMsg.buildChatCard('没找到要修改的任务。'))
         return
@@ -151,7 +152,8 @@ async function handle(client, data) {
         const { Solar } = (() => { try { return require('lunar-javascript') } catch { return {} } })()
 
         // 准备上下文
-        const tasks = reminderService.loadLocal().filter(r => r.target === chat_id && r.status === '启用')
+        const tasks = reminderService.loadLocal().filter(r =>
+          (r.target === chat_id || r.target === senderOpenId) && r.status === '启用')
         let weather = null
         try {
           weather = await morningBriefing.getWeatherCached(process.env.MORNING_WEATHER_CITY || 'Shanghai')

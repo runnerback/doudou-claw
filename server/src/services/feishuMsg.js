@@ -224,11 +224,13 @@ function buildSnoozeAckCard({ title, autoId, minutes }) {
 
 // ===== 发送 / 更新 =====
 
-async function sendCard(chatId, card) {
+async function sendCard(target, card) {
+  // 自动识别 target 是 chat_id (oc_) 还是 open_id (ou_)，分别用对应的 receive_id_type
+  const receiveType = typeof target === 'string' && target.startsWith('ou_') ? 'open_id' : 'chat_id'
   const res = await getClient().im.v1.message.create({
-    params: { receive_id_type: 'chat_id' },
+    params: { receive_id_type: receiveType },
     data: {
-      receive_id: chatId,
+      receive_id: target,
       content: JSON.stringify(card),
       msg_type: 'interactive',
     },
