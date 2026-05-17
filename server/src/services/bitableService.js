@@ -89,20 +89,27 @@ async function deleteRecord(recordId) {
 }
 
 async function listEnabledRecords() {
+  return _listWithFilter([{ field_name: '状态', operator: 'is', value: ['启用'] }])
+}
+
+// 全量拉所有记录（含暂停/已结束），用于 sync diff
+async function listAllRecords() {
+  return _listWithFilter(null)
+}
+
+async function _listWithFilter(conditions) {
   const all = []
   let pageToken = undefined
   do {
     const params = { page_size: 100 }
     if (pageToken) params.page_token = pageToken
+    const body = conditions
+      ? { filter: { conjunction: 'and', conditions } }
+      : {}
     const res = await getClient().bitable.v1.appTableRecord.search({
       path: { app_token: APP_TOKEN, table_id: TABLE_ID },
       params,
-      data: {
-        filter: {
-          conjunction: 'and',
-          conditions: [{ field_name: '状态', operator: 'is', value: ['启用'] }],
-        },
-      },
+      data: body,
     })
     all.push(...(res?.data?.items || []))
     pageToken = res?.data?.page_token
@@ -154,5 +161,5 @@ function recordToReminder(record) {
 
 module.exports = {
   createRecord, updateRecord, updateRecordRaw, deleteRecord,
-  listEnabledRecords, recordToReminder, typeLabel, labelToType,
+  listEnabledRecords, listAllRecords, recordToReminder, typeLabel, labelToType,
 }

@@ -16,6 +16,16 @@ router.post('/reload', async (req, res) => {
   }
 })
 
+// 手动触发一次 sync（不用等 60s 周期）
+router.post('/sync', async (req, res) => {
+  try {
+    await reminderService.syncFromBitable('manual')
+    res.json({ ok: true, count: reminderService.loadLocal().length })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
 router.delete('/:recordId', async (req, res) => {
   try {
     await reminderService.deleteReminder(req.params.recordId)
