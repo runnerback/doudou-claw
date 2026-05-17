@@ -10,6 +10,18 @@ function getClient() {
   return _client
 }
 
+// 多维表格链接 footer
+function bitableFooter() {
+  const url = process.env.BITABLE_VIEW_URL
+  if (!url) return null
+  return {
+    tag: 'note',
+    elements: [
+      { tag: 'lark_md', content: `📊 [在多维表格中查看 / 编辑](${url})` },
+    ],
+  }
+}
+
 // ===== 卡片构建 =====
 
 function buildThinkingCard() {
@@ -26,27 +38,30 @@ function buildThinkingCard() {
 }
 
 function buildSuccessCard({ recordId, autoId, title, human, content, type }) {
+  const elements = [
+    { tag: 'div', fields: [
+      { is_short: false, text: { tag: 'lark_md', content: `**📌 标题**\n${title}` } },
+      { is_short: false, text: { tag: 'lark_md', content: `**⏰ 时机**\n${human}` } },
+      { is_short: false, text: { tag: 'lark_md', content: `**📝 内容**\n${content || '_(无)_'}` } },
+      { is_short: true, text: { tag: 'lark_md', content: `**🏷 类型**\n${type || '-'}` } },
+    ]},
+    { tag: 'hr' },
+    { tag: 'action', actions: [
+      { tag: 'button', text: { tag: 'plain_text', content: '⏸ 暂停' },
+        type: 'default', value: { action: 'reminder_pause', record_id: recordId } },
+      { tag: 'button', text: { tag: 'plain_text', content: '🗑 删除' },
+        type: 'danger', value: { action: 'reminder_delete', record_id: recordId } },
+    ]},
+  ]
+  const footer = bitableFooter()
+  if (footer) elements.push(footer)
   return {
     config: { wide_screen_mode: true },
     header: {
       title: { tag: 'plain_text', content: `✅ 已创建提醒 #${autoId || '?'}` },
       template: 'green',
     },
-    elements: [
-      { tag: 'div', fields: [
-        { is_short: false, text: { tag: 'lark_md', content: `**📌 标题**\n${title}` } },
-        { is_short: false, text: { tag: 'lark_md', content: `**⏰ 时机**\n${human}` } },
-        { is_short: false, text: { tag: 'lark_md', content: `**📝 内容**\n${content || '_(无)_'}` } },
-        { is_short: true, text: { tag: 'lark_md', content: `**🏷 类型**\n${type || '-'}` } },
-      ]},
-      { tag: 'hr' },
-      { tag: 'action', actions: [
-        { tag: 'button', text: { tag: 'plain_text', content: '⏸ 暂停' },
-          type: 'default', value: { action: 'reminder_pause', record_id: recordId } },
-        { tag: 'button', text: { tag: 'plain_text', content: '🗑 删除' },
-          type: 'danger', value: { action: 'reminder_delete', record_id: recordId } },
-      ]},
-    ],
+    elements,
   }
 }
 
@@ -56,15 +71,18 @@ function buildBatchSuccessCard({ created, failed }) {
   const failLines = (failed || []).length
     ? '\n\n**⚠️ 失败：**\n' + failed.map(f => `• ${f.task?.title || '(unknown)'} — ${f.error}`).join('\n')
     : ''
+  const elements = [
+    { tag: 'div', text: { tag: 'lark_md', content: lines + failLines } },
+  ]
+  const footer = bitableFooter()
+  if (footer) elements.push(footer)
   return {
     config: { wide_screen_mode: true },
     header: {
       title: { tag: 'plain_text', content: `✅ 已创建 ${created.length} 个提醒` },
       template: 'green',
     },
-    elements: [
-      { tag: 'div', text: { tag: 'lark_md', content: lines + failLines } },
-    ],
+    elements,
   }
 }
 
@@ -137,16 +155,21 @@ function buildMatchSelectCard({ action, matches }) {
   }
 }
 
-function buildChatCard(content) {
+function buildChatCard(content, { withFooter = false } = {}) {
+  const elements = [
+    { tag: 'div', text: { tag: 'lark_md', content } },
+  ]
+  if (withFooter) {
+    const footer = bitableFooter()
+    if (footer) elements.push(footer)
+  }
   return {
     config: { wide_screen_mode: true },
     header: {
       title: { tag: 'plain_text', content: '💬 QClaw' },
       template: 'wathet',
     },
-    elements: [
-      { tag: 'div', text: { tag: 'lark_md', content } },
-    ],
+    elements,
   }
 }
 
@@ -198,6 +221,9 @@ function buildMorningCard({ greeting, weather, tasks, lunarDate }) {
 
   const subtitle = lunarDate ? `${dateStr}　·　${lunarDate}` : dateStr
   elements.unshift({ tag: 'div', text: { tag: 'lark_md', content: `_${subtitle}_` } })
+
+  const footer = bitableFooter()
+  if (footer) elements.push(footer)
 
   return {
     config: { wide_screen_mode: true },

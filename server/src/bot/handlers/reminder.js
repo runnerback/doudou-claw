@@ -74,7 +74,7 @@ async function handle(client, data) {
       const body = reminders.length
         ? reminders.map(r => `• \`#${r.autoId || '?'}\` ${r.title} — ${r.human || r.cron}`).join('\n')
         : '_目前没有任何启用中的提醒任务_'
-      await updateOrSend(feishuMsg.buildChatCard('**📋 你的任务清单**\n\n' + body))
+      await updateOrSend(feishuMsg.buildChatCard('**📋 你的任务清单**\n\n' + body, { withFooter: true }))
       return
     }
 
