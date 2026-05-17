@@ -209,11 +209,24 @@ function schedule(reminder) {
       markEnded(reminder.recordId).catch(() => {})
       return
     }
-    const handle = setTimeout(() => {
-      onTrigger(reminder).catch(e => console.error('[reminder] onTrigger err:', e.message))
-    }, delay)
-    scheduled.set(reminder.recordId, { reminder, handle })
-    console.log(`[reminder] scheduled ONCE #${reminder.autoId} "${reminder.title}" in ${Math.round(delay / 1000)}s`)
+    // Node.js setTimeout 上限 2^31-1 ms ≈ 24.85 天，超过会立即触发！
+    // 对超长 delay 分段：先睡 24 天，醒来重新 schedule（递归直到 delay ≤ 上限）
+    const SETTIMEOUT_MAX = 2147483000 // ≈ 24.85 天，留点 buffer
+    if (delay <= SETTIMEOUT_MAX) {
+      const handle = setTimeout(() => {
+        onTrigger(reminder).catch(e => console.error('[reminder] onTrigger err:', e.message))
+      }, delay)
+      scheduled.set(reminder.recordId, { reminder, handle })
+      console.log(`[reminder] scheduled ONCE #${reminder.autoId} "${reminder.title}" in ${Math.round(delay / 1000)}s`)
+    } else {
+      const handle = setTimeout(() => {
+        console.log(`[reminder] re-eval LONG-ONCE #${reminder.autoId}`)
+        schedule(reminder) // 递归：下一次 delay 会更小
+      }, SETTIMEOUT_MAX)
+      scheduled.set(reminder.recordId, { reminder, handle })
+      const days = Math.round(delay / 86400000)
+      console.log(`[reminder] scheduled LONG-ONCE #${reminder.autoId} "${reminder.title}" in ${days} days (re-eval in 24d)`)
+    }
     return
   }
 
