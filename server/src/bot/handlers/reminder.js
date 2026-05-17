@@ -142,9 +142,18 @@ async function handle(client, data) {
       return
     }
 
-    // ===== chat =====
+    // ===== chat（非任务消息 → 调 LLM 真实回答） =====
     if (parsed.intent === 'chat') {
-      const reply = parsed.reply || '我是任务管理助手。\n\n试试说：「每天 9 点提醒我喝水」'
+      let reply
+      try {
+        reply = await llmService.chatReply(text)
+      } catch (e) {
+        console.warn('[reminder handler] chatReply failed:', e.message)
+        reply = parsed.reply || `回答时出错：${e.message}`
+      }
+      if (!reply || !reply.trim()) {
+        reply = parsed.reply || '（暂时回答不上来）'
+      }
       await updateOrSend(feishuMsg.buildChatCard(reply))
       return
     }

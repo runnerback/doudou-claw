@@ -268,8 +268,22 @@ function cancel(recordId) {
 }
 
 async function onTrigger(reminder, opts = {}) {
-  console.log(`[reminder] FIRE #${reminder.autoId} "${reminder.title}" → ${reminder.target}${opts.snoozed ? ' (snoozed)' : ''}`)
+  console.log(`[reminder] FIRE #${reminder.autoId} "${reminder.title}" type=${reminder.type} → ${reminder.target}${opts.snoozed ? ' (snoozed)' : ''}`)
   try {
+    // 早安总结：特殊推送
+    if (reminder.type === 'morning_briefing') {
+      const morningBriefing = require('./morningBriefing')
+      await morningBriefing.fire(reminder, loadLocal())
+      const nowMs = Date.now()
+      const next = computeNextTrigger(reminder.type, reminder.cron, null)
+      await bitable.updateRecordRaw(reminder.recordId, {
+        '最近触发': nowMs,
+        '下次触发': next || undefined,
+      }).catch(e => console.warn('[morning] bitable update failed:', e.message))
+      return
+    }
+
+    // 普通任务：标准触发卡片
     await feishuMsg.sendCard(reminder.target, feishuMsg.buildTriggerCard({
       recordId: reminder.recordId, autoId: reminder.autoId,
       title: reminder.title, content: reminder.content, human: reminder.human,

@@ -163,6 +163,52 @@ function buildDoneCard({ title, autoId }) {
   }
 }
 
+function buildMorningCard({ greeting, weather, tasks, lunarDate }) {
+  const { dayjs, TZ } = require('../utils/timeUtil')
+  const today = dayjs().tz(TZ)
+  const dateStr = today.format('M 月 D 日 dddd')
+  const elements = []
+
+  // 寄语
+  elements.push({ tag: 'div', text: { tag: 'lark_md', content: greeting || '☀️ 元气满满的一天开始啦' } })
+
+  // 天气
+  if (weather) {
+    let line = `🌤 **${weather.city}**　${weather.desc}　${weather.temp}°C`
+    if (weather.feels) line += `（体感 ${weather.feels}°C）`
+    if (weather.max && weather.min) {
+      line += `\n📊 今日 ${weather.min}°C ~ ${weather.max}°C${weather.humidity ? `　湿度 ${weather.humidity}%` : ''}`
+    }
+    elements.push({ tag: 'hr' })
+    elements.push({ tag: 'div', text: { tag: 'lark_md', content: line } })
+  }
+
+  // 任务
+  elements.push({ tag: 'hr' })
+  if (!tasks || tasks.length === 0) {
+    elements.push({ tag: 'div', text: { tag: 'lark_md', content: '📋 **今日无提醒任务** — 享受自由的一天 ✨' } })
+  } else {
+    const lines = tasks.map(t => {
+      const time = dayjs(t.todayTriggerMs).tz(TZ).format('HH:mm')
+      const note = t.content ? ' — ' + t.content.slice(0, 30) : ''
+      return `• \`${time}\`　**${t.title}**${note}`
+    }).join('\n')
+    elements.push({ tag: 'div', text: { tag: 'lark_md', content: `📋 **今日待办（${tasks.length}）**\n\n${lines}` } })
+  }
+
+  const subtitle = lunarDate ? `${dateStr}　·　${lunarDate}` : dateStr
+  elements.unshift({ tag: 'div', text: { tag: 'lark_md', content: `_${subtitle}_` } })
+
+  return {
+    config: { wide_screen_mode: true },
+    header: {
+      title: { tag: 'plain_text', content: '☀️ 早安' },
+      template: 'yellow',
+    },
+    elements,
+  }
+}
+
 function buildSnoozeAckCard({ title, autoId, minutes }) {
   return {
     config: { wide_screen_mode: true },
@@ -211,6 +257,6 @@ async function updateCard(messageId, card) {
 module.exports = {
   buildThinkingCard, buildSuccessCard, buildBatchSuccessCard,
   buildFailureCard, buildTriggerCard, buildMatchSelectCard,
-  buildChatCard, buildDoneCard, buildSnoozeAckCard,
+  buildChatCard, buildDoneCard, buildSnoozeAckCard, buildMorningCard,
   sendCard, replyCard, updateCard, getClient,
 }

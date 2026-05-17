@@ -23,6 +23,7 @@ const TYPE_LABEL = {
   cron: '自定义cron',
   lunar: '农历',
   nth_weekday: '每月第N周X',
+  morning_briefing: '早安总结',
 }
 const LABEL_TYPE = Object.fromEntries(Object.entries(TYPE_LABEL).map(([k, v]) => [v, k]))
 

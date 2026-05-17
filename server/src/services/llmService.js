@@ -54,6 +54,16 @@ Target: { "id": "TASK-...-NNN", "title_query": "关键词" }
 - 农历十一月廿四 9:00 → "lunar:11-24 09:00"
 （注意：农历月份要写阿拉伯数字，不要用"正月/腊月/初/廿/三十"等汉字）
 
+### D. 早安总结（type=morning_briefing）⭐
+固定推送类型，每天给用户发当日待办 + 天气 + LLM 早安寄语
+cron 用标准格式，默认 "30 8 * * *"（每天 08:30）
+触发关键词：
+- "每天早上 8:30 给我早安总结"
+- "8 点半推个早安提醒"
+- "每天汇总今天的任务"
+- "每天早安鼓励一下"
+→ {"intent":"create","tasks":[{"title":"每日早安总结","content":"今日待办+天气+寄语","type":"morning_briefing","cron":"30 8 * * *","human":"每日 08:30 早安总结"}]}
+
 ### C. 每月/每年的第N个周X（type=nth_weekday）⭐
 格式："nth:M-W-N HH:MM"，M=月（1-12 或 * 表示任何月），W=周（0=周日，1=周一 … 6=周六），N=第N个（1-5）或 -1（最后一个）
 - 每年 5 月第二个周日 9:00 → "nth:5-0-2 09:00"
@@ -132,4 +142,61 @@ async function parse(userMessage) {
 
 const parseReminder = parse
 
-module.exports = { parse, parseReminder }
+// ============================================
+// 闲聊 / 问答（intent=chat 时调用，给用户真实回答）
+// ============================================
+const CHAT_SYSTEM = `你是飞书机器人豆豆酱（QClaw 任务助手），除了管理用户的提醒任务，也能回答日常问题、聊天、做决策建议。
+
+回答原则：
+- 简洁有用，避免冗长（多数回答 3-15 行内）
+- 用户问菜谱/做法 → 给具体步骤
+- 用户问知识 → 给准确信息，不知道就坦白
+- 用户闲聊/调侃 → 自然回应，不机械
+- 用户问你能干啥 → 简短介绍 + 一两个具体例子
+- 不要在每条回答最后加"试试说每天9点提醒我喝水"等任务管理引导语，除非用户问的就是任务相关
+
+输出纯文本，简洁的 markdown（**加粗**、- 列表）可用。`
+
+// ============================================
+// 早安寄语（morning_briefing 任务触发时调用）
+// ============================================
+async function morningGreeting({ date, lunarDate, taskCount, weather }) {
+  const ctxLines = [
+    `今天: ${date}`,
+    lunarDate ? `${lunarDate}` : '',
+    weather ? `天气: ${weather.desc} ${weather.temp}°C 体感${weather.feels}°C${weather.max && weather.min ? ` 今日${weather.min}~${weather.max}°C` : ''}` : '天气: 未知',
+    `今日提醒数: ${taskCount}`,
+  ].filter(Boolean).join('\n')
+
+  const sys = `你是温暖的早安播报员，给用户发当日早安寄语。
+要求：
+- 50-100 字，简洁有人味
+- 结合天气和任务数量给出贴心建议或鼓励
+- 可以幽默、暖心，但不要鸡汤化（避免"加油！你是最棒的！"这种空话）
+- 不要以"早安"开头（卡片已有标题）
+- 不要列举任务（其他模块会展示）
+- 不要建议用户做什么任务管理操作`
+  const res = await openai.chat.completions.create({
+    model: MODEL,
+    messages: [
+      { role: 'system', content: sys },
+      { role: 'user', content: ctxLines },
+    ],
+    temperature: 0.9,
+  })
+  return (res.choices[0]?.message?.content || '').trim()
+}
+
+async function chatReply(userMessage) {
+  const res = await openai.chat.completions.create({
+    model: MODEL,
+    messages: [
+      { role: 'system', content: CHAT_SYSTEM },
+      { role: 'user', content: userMessage },
+    ],
+    temperature: 0.7,
+  })
+  return res.choices[0]?.message?.content || ''
+}
+
+module.exports = { parse, parseReminder, chatReply, morningGreeting }
