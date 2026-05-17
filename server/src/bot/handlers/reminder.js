@@ -142,11 +142,34 @@ async function handle(client, data) {
       return
     }
 
-    // ===== chat（非任务消息 → 调 LLM 真实回答） =====
+    // ===== chat（非任务消息 → 调 LLM 真实回答，注入任务清单 + 天气上下文） =====
     if (parsed.intent === 'chat') {
       let reply
       try {
-        reply = await llmService.chatReply(text)
+        const { nowLocal } = require('../../utils/timeUtil')
+        const morningBriefing = require('../../services/morningBriefing')
+        const { Solar } = (() => { try { return require('lunar-javascript') } catch { return {} } })()
+
+        // 准备上下文
+        const tasks = reminderService.loadLocal().filter(r => r.target === chat_id && r.status === '启用')
+        let weather = null
+        try {
+          weather = await morningBriefing.getWeatherCached(process.env.MORNING_WEATHER_CITY || 'Shanghai')
+        } catch (e) {
+          console.warn('[reminder handler] weather fetch failed:', e.message)
+        }
+        let lunarDate = ''
+        if (Solar) {
+          try {
+            const l = Solar.fromDate(new Date()).getLunar()
+            lunarDate = `${l.getMonthInChinese()}月${l.getDayInChinese()}`
+          } catch {}
+        }
+
+        reply = await llmService.chatReply(text, {
+          date: nowLocal().format('YYYY-MM-DD HH:mm dddd'),
+          lunarDate, tasks, weather,
+        })
       } catch (e) {
         console.warn('[reminder handler] chatReply failed:', e.message)
         reply = parsed.reply || `回答时出错：${e.message}`

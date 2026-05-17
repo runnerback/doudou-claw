@@ -44,6 +44,22 @@ function getTodayTriggers(reminders, target) {
   return list.sort((a, b) => a.todayTriggerMs - b.todayTriggerMs)
 }
 
+// 天气缓存（30 分钟 TTL），避免每次 chat 都 fetch
+const _weatherCache = { ts: 0, city: '', data: null }
+async function getWeatherCached(city) {
+  city = city || 'Shanghai'
+  if (_weatherCache.city === city && _weatherCache.data && Date.now() - _weatherCache.ts < 30 * 60 * 1000) {
+    return _weatherCache.data
+  }
+  const data = await getWeather(city)
+  if (data) {
+    _weatherCache.data = data
+    _weatherCache.city = city
+    _weatherCache.ts = Date.now()
+  }
+  return data
+}
+
 async function getWeather(city) {
   if (!city) city = 'Shanghai'
   try {
@@ -113,4 +129,4 @@ async function fire(reminder, allReminders) {
   console.log(`[morning] sent to ${target}, tasks=${tasks.length}, weather=${weather ? weather.desc : 'n/a'}`)
 }
 
-module.exports = { fire, getTodayTriggers, getWeather }
+module.exports = { fire, getTodayTriggers, getWeather, getWeatherCached }
